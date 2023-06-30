@@ -1,0 +1,14 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    properties:
+      security.protocol: "SASL_SSL"
+      sasl.mechanism: PLAIN
+      group.id: "{GROUP_ID}"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='${SASL_USERNAME}' password='${SASL_PASSWORD}';"
+logging:
+  file:
+    name: kafka-cli.log
+
+application:
+  backupTopics: []
