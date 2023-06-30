@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
 plugins {
     id("org.springframework.boot") version "3.1.1"
@@ -6,6 +7,8 @@ plugins {
     kotlin("jvm") version "1.8.22"
     kotlin("plugin.spring") version "1.8.22"
 }
+
+apply(plugin = "io.spring.dependency-management")
 
 group = "de.denktmit"
 version = "0.0.1-SNAPSHOT"
@@ -45,4 +48,12 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+tasks.named<BootBuildImage>("bootBuildImage") {
+    docker {
+        publishRegistry {
+            username.set(System.getenv("GITHUB_ACTOR") ?: "")
+            password.set(System.getenv("GITHUB_TOKEN") ?: "")
+        }
+    }
 }

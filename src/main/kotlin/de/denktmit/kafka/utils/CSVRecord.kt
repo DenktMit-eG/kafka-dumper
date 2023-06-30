@@ -7,4 +7,6 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 
 @OptIn(ExperimentalEncodingApi::class)
-fun CSVRecord.b64Get(name: String): ByteBuffer = ByteBuffer.wrap(Base64.decode(this.get(name)))
+fun CSVRecord.base64EncodedBuf(name: String): ByteBuffer = ByteBuffer.wrap(this.base64Encoded(name))
+@OptIn(ExperimentalEncodingApi::class)
+fun CSVRecord.base64Encoded(name: String): ByteArray = Base64.decode(this.get(name))

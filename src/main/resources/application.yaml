@@ -12,3 +12,4 @@ logging:
 
 application:
   backupTopics: []
+  restoreTopics: {}

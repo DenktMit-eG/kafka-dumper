@@ -6,7 +6,6 @@ import org.apache.kafka.common.serialization.ByteBufferSerializer
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Lazy
 import reactor.kafka.receiver.ReceiverOptions
 import reactor.kafka.sender.SenderOptions
 import java.nio.ByteBuffer
