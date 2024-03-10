@@ -2,13 +2,17 @@ package de.denktmit.kafka.command
 
 import de.denktmit.kafka.config.CsvConfig.Companion.CSV_FORMAT
 import de.denktmit.kafka.config.KafkaCliConfiguration
-import de.denktmit.kafka.utils.*
+import de.denktmit.kafka.utils.b64Key
+import de.denktmit.kafka.utils.b64Value
+import de.denktmit.kafka.utils.logEveryNthObservable
+import de.denktmit.kafka.utils.writeCSV
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.ListOffsetsResult
 import org.apache.kafka.clients.admin.OffsetSpec
 import org.apache.kafka.common.TopicPartition
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.kafka.core.reactive.ReactiveKafkaConsumerTemplate
 import org.springframework.shell.standard.ShellComponent
 import org.springframework.shell.standard.ShellMethod
@@ -23,16 +27,20 @@ import java.util.concurrent.atomic.AtomicLong
 
 @ShellComponent
 class KafkaTopicBackupCommand(
-    var receiverOptions: ReceiverOptions<ByteBuffer, ByteBuffer>,
-    var adminClient: AdminClient,
+    val receiverOptions: ReceiverOptions<ByteBuffer, ByteBuffer>,
+    val kafkaProperties: KafkaProperties,
     val config: KafkaCliConfiguration
 ) {
     companion object {
         val LOGGER: Logger = LoggerFactory.getLogger(KafkaTopicBackupCommand::class.java)
     }
 
-    fun discoverTopics(topics: List<String>) =
-        Flux.fromIterable(adminClient.describeTopics(topics).topicNameValues().values)
+
+    fun discoverTopics(topics: List<String>): Flux<MutableMap.MutableEntry<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>> {
+
+        val adminClient = AdminClient.create(kafkaProperties.buildAdminProperties(null))
+
+        return Flux.fromIterable(adminClient.describeTopics(topics).topicNameValues().values)
             .flatMap { value ->
                 Flux.fromIterable(
                     adminClient.listOffsets(
@@ -42,6 +50,7 @@ class KafkaTopicBackupCommand(
                         .get().entries
                 )
             }
+    }
 
     fun consumeTopics(it: MutableMap.MutableEntry<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>): Flux<*> {
         val path = Path.of("${it.key.topic()}-${it.key.partition()}.csv")

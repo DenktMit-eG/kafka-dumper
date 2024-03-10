@@ -1,5 +1,6 @@
 package de.denktmit.kafka
 
+import de.denktmit.kafka.command.MirrorConfig
 import de.denktmit.kafka.config.KafkaCliConfiguration
 import org.springframework.boot.Banner
 import org.springframework.boot.SpringApplication
@@ -8,7 +9,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 
 @SpringBootApplication
-@EnableConfigurationProperties(KafkaCliConfiguration::class)
+@EnableConfigurationProperties(KafkaCliConfiguration::class, MirrorConfig::class)
 class KafkaCliApplication
 
 fun main(args: Array<String>) {
