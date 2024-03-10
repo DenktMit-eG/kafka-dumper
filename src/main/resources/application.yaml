@@ -16,6 +16,5 @@ application:
 
 mirror:
   topics:
-  allowedTopicPattern: "".*"
-  allowedConfigrationPattern: ".*"
-  deniedConfigrationPattern: ""
+  #  allowedTopicPattern: ".*"
+  allowedTopicPattern: "mccs.*"

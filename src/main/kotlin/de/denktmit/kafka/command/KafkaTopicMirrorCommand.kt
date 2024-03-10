@@ -3,6 +3,7 @@ package de.denktmit.kafka.command
 import de.denktmit.kafka.config.KafkaCliConfiguration
 import de.denktmit.kafka.utils.getTopics
 import de.denktmit.kafka.utils.logEveryNthObservable
+import de.denktmit.kafka.utils.logThroughputEveryDuration
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -61,9 +62,7 @@ class KafkaTopicMirrorCommand(
 
     @ShellMethod(key = ["mirror"], value = "unidirectional topic mirroring")
     fun mirror() {
-        val partitions = replicateTopicConfigs()
-
-        val flux = Flux.fromIterable(partitions).flatMap { partitions ->
+        val flux = Flux.fromIterable(replicateTopicConfigs()).flatMap { partitions ->
             val opts = receiverOptions.assignment(partitions)
 //                .addAssignListener { onAssign -> onAssign.forEach { assign -> assign.seekToBeginning(); } }
 
@@ -101,6 +100,8 @@ class KafkaTopicMirrorCommand(
                     { rn -> LOGGER.info("[{}] produced {} msgs in total ", topicName, rn) },
                     10_000
                 )
+        }.logThroughputEveryDuration { throughput, totalMessages ->
+            LOGGER.info("Current throughput: $throughput items/second, Total messages: $totalMessages")
         }
 
         subscribe(flux)
