@@ -1,11 +1,18 @@
 package de.denktmit.kafka.command
 
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.util.JsonFormat
 import de.denktmit.kafka.config.KafkaCliConfiguration
 import de.denktmit.kafka.utils.getTopics
 import de.denktmit.kafka.utils.logEveryNthObservable
 import de.denktmit.kafka.utils.logThroughputEveryDuration
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClientFactory
+import io.confluent.kafka.schemaregistry.protobuf.ProtobufSchemaProvider
+import io.confluent.kafka.serializers.protobuf.KafkaProtobufDeserializer
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.NewTopic
+import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigResource
@@ -36,14 +43,13 @@ import java.util.concurrent.CountDownLatch
 class KafkaTopicMirrorCommand(
     var receiverOptions: ReceiverOptions<ByteBuffer, ByteBuffer>,
     val senderOptions: SenderOptions<ByteBuffer, ByteBuffer>,
-    kafkaProperties: KafkaProperties,
+    val kafkaProperties: KafkaProperties,
     val config: KafkaCliConfiguration,
-    val mirrorConfig: MirrorConfig
+    val mirrorConfig: MirrorConfig,
 ) : AbstractShellComponent() {
     companion object {
         val LOGGER: Logger = LoggerFactory.getLogger(KafkaTopicMirrorCommand::class.java)
     }
-
 
     val consumerAdminClient: AdminClient = AdminClient.create(kafkaProperties.buildConsumerProperties(null))
     val producerAdminClient: AdminClient = AdminClient.create(kafkaProperties.buildProducerProperties(null))
@@ -60,8 +66,58 @@ class KafkaTopicMirrorCommand(
         scheduler.dispose()
     }
 
+    @ShellMethod(key = ["mirror-json"], value = "unidirectional topic mirroring")
+    fun mirrorJson() {
+        val printer = JsonFormat.printer()
+
+        val deserializer = KafkaProtobufDeserializer<DynamicMessage>(schemaRegistry())
+
+        mirror {
+            val rawMsg = it.value()
+            rawMsg.position(0)
+            val msgArray = ByteArray(rawMsg.remaining())
+            rawMsg.get(msgArray)
+
+            val msg = printer.print(deserializer.deserialize(it.topic(), msgArray)).toByteArray()
+
+            SenderRecord.create(
+                ProducerRecord(
+                    it.topic(),
+                    it.partition(),
+                    it.timestamp(),
+                    it.key(),
+                    ByteBuffer.wrap(msg),
+                    it.headers()
+                ), null
+            )
+        }
+    }
+
+    private fun schemaRegistry(): SchemaRegistryClient? {
+        val configs = kafkaProperties.buildAdminProperties(null)
+
+        val urlString = configs["schema.registry.url"] as String
+        val urls = urlString.split(",".toRegex()).dropLastWhile { it.isEmpty() }
+
+        return SchemaRegistryClientFactory.newClient(
+            urls,
+            100_000,
+            listOf(ProtobufSchemaProvider()),
+            configs,
+            emptyMap()
+        )
+    }
+
     @ShellMethod(key = ["mirror"], value = "unidirectional topic mirroring")
-    fun mirror() {
+    fun mirrorRaw() {
+        mirror {
+            SenderRecord.create(
+                ProducerRecord(it.topic(), it.partition(), it.timestamp(), it.key(), it.value(), it.headers()), null
+            )
+        }
+    }
+
+    fun mirror(converter: (ConsumerRecord<ByteBuffer, ByteBuffer>) -> SenderRecord<ByteBuffer, ByteBuffer, Nothing?>?) {
         val flux = Flux.fromIterable(replicateTopicConfigs()).flatMap { partitions ->
             val opts = receiverOptions.assignment(partitions)
 //                .addAssignListener { onAssign -> onAssign.forEach { assign -> assign.seekToBeginning(); } }
@@ -77,12 +133,7 @@ class KafkaTopicMirrorCommand(
                     LOGGER.error("Unable to consume topic", ex)
                     Flux.empty()
                 }
-                .map {
-                    SenderRecord.create(
-                        ProducerRecord(it.topic(), it.partition(), it.timestamp(), it.key(), it.value(), it.headers()),
-                        null
-                    )
-                }
+                .map(converter)
                 .doFinally { countDownLatch.countDown() }
                 .logEveryNthObservable(
                     { rn, _ -> LOGGER.info("[{}] consumed {} msgs ", topicName, rn) },

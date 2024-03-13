@@ -35,7 +35,7 @@ jobs:
       - name: build container images
         run: >-
           ./mvnw spring-boot:build-image -q -B -DskipTests 
-          -Dsha="-${GITHUB_SHA::6}" 
+          -Dsha1="-${GITHUB_SHA::6}" 
           -Dspring-boot.build-image.publish=true 
           -Ddocker.publishRegistry.username=${{ github.actor }} 
           -Ddocker.publishRegistry.password=${{ secrets.GITHUB_TOKEN }} 
